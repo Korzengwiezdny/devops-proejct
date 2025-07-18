@@ -1,17 +1,21 @@
 pipeline {
     agent any
 
+    environment {
+        IMAGE_NAME = 'flask-devops-app'
+    }
+
     stages {
         stage('Checkout') {
             steps {
-                checkout scm
+                git 'https://github.com/Korzengwiezdny/devops-proejct'
             }
         }
 
         stage('Build Docker Image') {
             steps {
                 script {
-                    dockerImage = docker.build("flask-devops-app")
+                    docker.build("${IMAGE_NAME}")
                 }
             }
         }
@@ -19,7 +23,7 @@ pipeline {
         stage('Run Tests') {
             steps {
                 script {
-                    dockerImage.inside {
+                    docker.image("${IMAGE_NAME}").inside {
                         sh 'pytest'
                     }
                 }
@@ -27,9 +31,27 @@ pipeline {
         }
 
         stage('Run Container') {
-            steps {
-                sh 'docker run -d -p 5000:5000 flask-devops-app'
+            when {
+                expression { currentBuild.currentResult == 'SUCCESS' }
             }
+            steps {
+                script {
+                    // Zatrzymaj poprzedni kontener jeśli istnieje
+                    sh 'docker rm -f flask-container || true'
+                    
+                    // Uruchom nowy kontener
+                    sh 'docker run -d -p 5000:5000 --name flask-container flask-devops-app'
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            echo 'Pipeline finished.'
+        }
+        failure {
+            echo 'Something went wrong.'
         }
     }
 }
